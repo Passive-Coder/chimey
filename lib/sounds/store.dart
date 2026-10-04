@@ -99,6 +99,10 @@ class SoundStore extends ChangeNotifier {
     }
     _events[index] = _events[index].corrected(label.trim());
   });
+  Future<void> updateDelivery(String eventId, String delivery) => _change(() {
+    final index = _events.indexWhere((e) => e.id == eventId);
+    if (index >= 0) _events[index] = _events[index].withDelivery(delivery);
+  });
   Future<void> clearEvents() => _change(() => _events.clear());
   Future<void> _change(void Function() change) {
     final task = _writes.then((_) async {

@@ -23,13 +23,14 @@ class RecognitionEngine {
       final score = sound.examples
           .map((v) => cosine(features, v))
           .reduce(math.max);
-      if (score >= sound.threshold) matches.add((sound: sound, score: score));
+      matches.add((sound: sound, score: score));
     }
     matches.sort((a, b) => b.score.compareTo(a.score));
     if (matches.length > 1 && matches.first.score - matches[1].score < .05) {
       return _unknown('Similar personal sounds; record more examples');
     }
-    if (matches.isNotEmpty) {
+    if (matches.isNotEmpty &&
+        matches.first.score >= matches.first.sound.threshold) {
       return RecognitionResult(
         kind: RecognitionKind.personal,
         label: matches.first.sound.name,

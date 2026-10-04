@@ -29,6 +29,57 @@ PersonalSound profile(
 );
 void main() {
   test(
+    'LED completion survives restart and preserves user correction',
+    () async {
+      final disk = MemoryStorage();
+      final store = SoundStore(disk);
+      await store.load();
+      await store.addEvent(
+        SoundEvent(
+          id: 'led-1',
+          label: 'Door',
+          kind: RecognitionKind.personal,
+          time: DateTime.now(),
+          delivery: 'LED pending',
+        ),
+      );
+      await store.correct('led-1', 'Side door');
+      await store.updateDelivery('led-1', 'LED acknowledged');
+      final restarted = SoundStore(disk);
+      await restarted.load();
+      expect(restarted.events.single.delivery, 'LED acknowledged');
+      expect(restarted.events.single.correction, 'Side door');
+    },
+  );
+  test('unsupported LED transport is rejected before saving', () {
+    expect(
+      () => SoundRule.fromJson(
+        const SoundRule(ledEndpoint: 'http://192.168.1.20/led').toJson(),
+      ),
+      throwsFormatException,
+    );
+    expect(
+      SoundRule.fromJson(
+        const SoundRule(ledEndpoint: 'https://led.example/led').toJson(),
+      ).ledEndpoint,
+      'https://led.example/led',
+    );
+  });
+  test(
+    'a closer runner-up below its threshold still prevents a wrong action',
+    () {
+      final result = RecognitionEngine().classify(
+        [1, 0],
+        [
+          profile('a', [.94, .34117444]).copyWith(threshold: .90),
+          profile('b', [.95, .3122499]).copyWith(threshold: .96),
+        ],
+      );
+      expect(result.canExecute, isFalse);
+      expect(result.kind, RecognitionKind.unknown);
+    },
+  );
+  test(
     'profiles and distinct vibration rules survive a store restart',
     () async {
       final disk = MemoryStorage();

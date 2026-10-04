@@ -5,6 +5,7 @@ import 'audio.dart';
 import 'visuals.dart';
 import 'sounds/runtime.dart';
 import 'sounds/library.dart';
+import 'sounds/assist.dart';
 
 void main() => runApp(const MyApp());
 
@@ -264,7 +265,7 @@ class _ChimeyHomeState extends State<ChimeyHome>
           const Text('A little more aware.', style: TextStyle(fontSize: 26)),
           const SizedBox(height: 16),
           const Text(
-            'Chimey is a UI prototype for noticing useful sounds. Scenes, recognition, and responses are simulated. No appliance actions or notifications are sent.',
+            'Chimey helps you notice useful sounds. Demo scenes simulate responses. Android microphone mode uses local acoustic recognition and can deliver configured personal-sound actions. Manage real profiles in your sound library.',
             style: TextStyle(color: muted),
           ),
           const SizedBox(height: 16),
@@ -779,8 +780,10 @@ class _ChimeyHomeState extends State<ChimeyHome>
           style: TextStyle(color: muted, fontSize: 12),
         ),
         const SizedBox(height: 14),
-        const Text(
-          'Relative dBFS · no recording saved\nNo recognition or actions in live mode.',
+        Text(
+          nativeRecognition
+              ? 'Relative dBFS · local recognition\nPersonal sound rules run on this device.'
+              : 'Relative dBFS · no recording saved\nForeground visualization on this platform.',
           style: TextStyle(color: muted, fontSize: 11),
         ),
       ] else ...[
@@ -892,6 +895,16 @@ class _ChimeyHomeState extends State<ChimeyHome>
               ),
               icon: const Icon(Icons.library_music_outlined),
               label: const Text('Manage personal sounds & real actions'),
+            ),
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => SoundAssist(runtime: runtime),
+                ),
+              ),
+              icon: const Icon(Icons.auto_awesome_outlined),
+              label: const Text('Understand an unfamiliar sound'),
             ),
             const SizedBox(height: 16),
             FilledButton.icon(

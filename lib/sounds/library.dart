@@ -4,14 +4,25 @@ import 'recognition.dart';
 import 'runtime.dart';
 
 class SoundLibrary extends StatefulWidget {
-  const SoundLibrary({super.key, required this.runtime});
+  const SoundLibrary({super.key, required this.runtime, this.suggestedName});
   final SoundRuntime runtime;
+  final String? suggestedName;
   @override
   State<SoundLibrary> createState() => _SoundLibraryState();
 }
 
 class _SoundLibraryState extends State<SoundLibrary> {
   SoundRuntime get runtime => widget.runtime;
+  @override
+  void initState() {
+    super.initState();
+    if (widget.suggestedName != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) enroll(suggestedName: widget.suggestedName);
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: runtime,
@@ -101,10 +112,11 @@ class _SoundLibraryState extends State<SoundLibrary> {
     }
   }
 
-  Future<void> enroll({PersonalSound? existing}) async {
-    final name = TextEditingController(text: existing?.name);
+  Future<void> enroll({PersonalSound? existing, String? suggestedName}) async {
+    final name = TextEditingController(text: existing?.name ?? suggestedName);
     final positive = <List<double>>[], background = <List<double>>[];
     var lastSequence = -1;
+    var notify = existing?.rule.notification ?? true;
     String message =
         'Play your sound, then capture an example. Capture different repetitions, not the same moment.';
     await showDialog<void>(
@@ -126,6 +138,11 @@ class _SoundLibraryState extends State<SoundLibrary> {
                     controller: name,
                     maxLength: 80,
                     decoration: const InputDecoration(labelText: 'Sound name'),
+                  ),
+                  SwitchListTile(
+                    title: const Text("Notification response"),
+                    value: notify,
+                    onChanged: (v) => update(() => notify = v),
                   ),
                   Text(message),
                   const SizedBox(height: 16),
@@ -217,7 +234,14 @@ class _SoundLibraryState extends State<SoundLibrary> {
                   examples: positive,
                   threshold: calibration.threshold,
                   validated: true,
-                  rule: existing?.rule ?? const SoundRule(),
+                  enabled: existing?.enabled ?? true,
+                  rule: SoundRule(
+                    notification: notify,
+                    vibration: existing?.rule.vibration ?? false,
+                    pattern: existing?.rule.pattern ?? const [0, 180, 120, 180],
+                    ledEndpoint: existing?.rule.ledEndpoint,
+                    cooldownSeconds: existing?.rule.cooldownSeconds ?? 30,
+                  ),
                   featureModel: 'yamnet-embedding-v1',
                 );
                 try {
@@ -336,9 +360,6 @@ class _SoundLibraryState extends State<SoundLibrary> {
                   );
                   SoundRule.fromJson(rule.toJson());
                   await runtime.save(sound.copyWith(rule: rule));
-                  if (notification && nativeRecognition) {
-                    await NativeRuntime.channel.invokeMethod('notifications');
-                  }
                   if (context.mounted) Navigator.pop(context);
                 } catch (e) {
                   update(() => message = 'Could not save: $e');

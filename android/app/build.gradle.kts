@@ -46,6 +46,7 @@ flutter {
 
 dependencies {
     implementation("com.google.ai.edge.litert:litert:1.4.2")
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.10.2")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.2")

@@ -37,10 +37,10 @@ class SoundRule {
     if (endpoint != null) {
       final uri = Uri.tryParse(endpoint);
       if (uri == null ||
-          !['https', 'http'].contains(uri.scheme) ||
+          uri.scheme != 'https' ||
           uri.host.isEmpty ||
           uri.userInfo.isNotEmpty) {
-        throw const FormatException('Invalid LED endpoint');
+        throw const FormatException('LED endpoint must use HTTPS');
       }
     }
     return SoundRule(
@@ -207,6 +207,16 @@ class SoundEvent {
     soundId: soundId,
     delivery: delivery,
     correction: text,
+  );
+  SoundEvent withDelivery(String value) => SoundEvent(
+    id: id,
+    label: label,
+    kind: kind,
+    time: time,
+    score: score,
+    soundId: soundId,
+    delivery: value,
+    correction: correction,
   );
   Map<String, Object?> toJson() => {
     'id': id,

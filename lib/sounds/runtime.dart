@@ -28,19 +28,14 @@ class NativeCapture implements CaptureDevice {
   @override
   Future<Stream<Uint8List>> start() async {
     final output = StreamController<Uint8List>();
-    var began = false;
     final subscription = NativeRuntime.events.listen((event) {
-      if (event['type'] == 'status' &&
-          ['starting', 'listening'].contains(event['state'])) {
-        began = true;
-      }
       if (event['type'] == 'pcm' && !output.isClosed) {
         output.add(event['bytes'] as Uint8List);
       }
       if (event['type'] == 'status' && event['state'] == 'error') {
         output.addError(StateError(event['error'].toString()));
       }
-      if (began &&
+      if (event['snapshot'] != true &&
           event['type'] == 'status' &&
           event['state'] == 'stopped' &&
           !output.isClosed) {
@@ -85,6 +80,8 @@ class SoundRuntime extends ChangeNotifier {
         final event = SoundEvent.fromJson(item as Map<String, dynamic>);
         if (!store.events.any((e) => e.id == event.id)) {
           await store.addEvent(event);
+        } else {
+          await store.updateDelivery(event.id, event.delivery);
         }
       }
       if (_closed) return;
@@ -122,9 +119,20 @@ class SoundRuntime extends ChangeNotifier {
       case 'event':
         unawaited(_saveEvent(e['event'] as String));
       case 'delivery':
-        error = e['delivery'].toString();
+        unawaited(
+          _saveDelivery(e['eventId'].toString(), e['delivery'].toString()),
+        );
     }
     _notify();
+  }
+
+  Future<void> _saveDelivery(String id, String delivery) async {
+    try {
+      await store.updateDelivery(id, delivery);
+    } catch (e) {
+      error = 'Unable to save delivery: $e';
+      _notify();
+    }
   }
 
   Future<void> _saveEvent(String json) async {
@@ -139,6 +147,16 @@ class SoundRuntime extends ChangeNotifier {
   }
 
   Future<void> save(PersonalSound profile) async {
+    if (nativeRecognition && profile.enabled && profile.rule.notification) {
+      final granted =
+          await NativeRuntime.channel.invokeMethod<bool>('notifications') ??
+          false;
+      if (!granted) {
+        throw StateError(
+          'Notification permission was denied. Enable it in Android settings, or choose a vibration or LED response.',
+        );
+      }
+    }
     await store.upsert(profile);
     await _sync();
   }

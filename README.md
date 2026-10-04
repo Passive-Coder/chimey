@@ -1,43 +1,39 @@
 # chimey
 
-A Flutter UI prototype for noticing useful sounds around you. A flowing Apple Intelligence-style perimeter glow reacts to audio level and frequency, with conversational environment responses.
+A Flutter app for noticing useful sounds, with an Apple Intelligence-inspired audio-reactive glow and conversational environment responses.
+
+The full PRD implementation is in progress. Android includes a native microphone foreground service, bundled LiteRT/YAMNet inference, calibrated personal sound enrollment, persistent rules, notifications, distinct vibration patterns, and a configurable LED JSON POST. A separate native worker imports and runs an audio-enabled LiteRT-LM model. Optional Node assistance distinguishes explicitly shared audio analysis from text-only internet research.
 
 ## Try it
 
-```sh
+```
 flutter pub get
-flutter run -d chrome
-# or connect your phone:
 flutter run
 ```
 
-- **Listen:** pause/resume, try Quiet room, Doorbell, Laundry, or Unknown, and adjust demo level, frequency, and direction.
-- **Use microphone:** explicit permission-based foreground audio capture. Local PCM analysis drives the glow, sound field, relative dBFS meter, dominant frequency, and 32-band spectrum. Pause, change views, or leave the app to stop capture. Return to demo with **Use demo**.
-- **Sounds:** add a named demo sound, toggle profiles, and choose a simulated response.
-- **Activity:** review or clear demo events. Profiles and activity last for the session only.
+Choose **Use microphone** to start listening. On Android, listening continues across views and backgrounding with a persistent status notification. Stop it in the app or notification. Other currently built platforms provide foreground microphone visualization. Demo scenes are clearly labeled and never execute a rule.
 
-## Prototype boundaries
+Open **Sounds → Manage personal sounds & real actions**. While listening on Android, record three separate repetitions and a room reference; only profiles passing calibration can act. Choose a notification, a distinctive vibration pattern, or an HTTPS LED endpoint. Correct events or re-record examples from the persistent sound library.
 
-Only the UI and audio-reactive visualization are implemented. Sound classification, training, LiteRT, on-device LLMs, internet identification, background monitoring, appliance actions, notifications, vibrations, and LEDs are not implemented. Demo responses are labeled and no device action is executed. Live status describes measured loudness, not a recognized event.
+Open **Understand an unfamiliar sound** to import an audio-enabled Gemma 3n E2B `.litertlm` model, load it asynchronously, and analyze recent audio locally. Model explanations remain unconfirmed. A confirmed interpretation still needs acoustic enrollment before it can trigger a rule. The official model distribution is access-gated; obtain a licensed artifact before importing. Full audio-model execution is not yet qualified on hardware.
 
-A single microphone cannot reliably locate a sound. Directional edge density uses **simulated** direction in demo mode; live microphone energy is equal on every edge. Live **dBFS** is relative digital amplitude, not calibrated environmental dB SPL. Frequency is the strongest FFT bin above the noise floor, not sound identification. No audio is saved or uploaded.
+For optional online assistance, follow [server setup](server/README.md). Every clip or description request requires an explicit sharing confirmation. Provider credentials remain on the server, and the client token is held only for the open screen. Live cloud results await configured credentials.
 
-Microphone capture on web requires HTTPS or localhost and browser permission. Device/browser gain and sample-rate handling can affect readings. Native device microphone behavior needs hardware validation; this prototype makes no device-accuracy promise.
+## Compatibility and validation
 
-## Validate and build
+Android 8+ supports the native recognition pipeline. Full audio reasoning requires a supported 64-bit device, suitable model artifact, and sufficient RAM/storage; it is not promised on every phone. Web and iOS currently provide responsive UI and foreground audio visualization, with text internet research when a service is configured. Native iOS recognition/background model integration remains unimplemented. See [requirement coverage](docs/requirements.md), [native test evidence](docs/native-validation.md), [model contract](docs/yamnet.md), and [audio assistance](docs/audio-assistance.md).
 
-```sh
+A single microphone cannot reliably locate sound. Directional edge density is simulated in demo mode; live mono energy drives all edges equally. dBFS is relative digital amplitude rather than calibrated environmental SPL.
+
+```
 flutter analyze
 flutter test
 flutter build web --pwa-strategy none
-flutter build ios --simulator
 flutter build apk --debug
+flutter build ios --simulator
+cd server && npm test
 ```
 
-Flutter 3.38.7 / Dart 3.10.7 was used. Web release, iOS simulator, and Android debug APK builds verified. All 14 tests pass. Physical-device microphone behavior has not been verified. Tests cover PCM amplitude/frequency/silence/chunk boundaries, permission/start cancellation and capture stop, UI responses, enrollment, and responsive layouts.
+32 Flutter tests, five Node contract tests, native PCM/session tests, and Android instrumentation have passed. Actual Gemma audio inference, live cloud responses, physical haptics/LED delivery, and personal-sound accuracy still require runtime qualification. No Python is used in application, server, model preparation, tests, or build tooling.
 
-## Visual reference
-
-[Aurora](https://github.com/tornikegomareli/Aurora) supplies the reference approach: anchored multicolor fields, a warped rounded-rectangle distance field, soft inward light, and a damped intro pulse. Chimey implements an original Flutter GLSL adaptation with directional audio uniforms rather than a SwiftUI dependency. It is an approximation of that visual language, not a pixel-identical Apple implementation. Reduced motion stops continuous animation; a gradient fallback supports renderers without fragment shaders.
-
-See [prototype design and scope](docs/prototype.md).
+[Aurora](https://github.com/tornikegomareli/Aurora) informed the original Flutter shader's anchored colors and warped perimeter glow. It is a visual adaptation, not a claim of pixel-identical Apple rendering. Inter is bundled with its OFL license.

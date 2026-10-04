@@ -25,10 +25,11 @@ object Recognition {
                 score=maxOf(score,cosine(features,List(v.length()){v.getDouble(it)}))
             }
             val threshold=p.optDouble("threshold",1.0)
-            if(threshold.isFinite() && threshold>0 && threshold<=1 && score>=threshold) candidates.add(i to score)
+            if(threshold.isFinite() && threshold>0 && threshold<=1) candidates.add(i to score)
         }
         candidates.sortByDescending{it.second}
         if(candidates.size>1 && candidates[0].second-candidates[1].second<.05) return null
-        return candidates.firstOrNull()
+        val winner=candidates.firstOrNull() ?: return null
+        return if(winner.second>=profiles.getJSONObject(winner.first).getDouble("threshold")) winner else null
     }
 }

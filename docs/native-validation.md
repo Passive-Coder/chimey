@@ -55,3 +55,5 @@ adb -s emulator-5554 shell dumpsys vibrator_manager
 ```
 
 Replace the toolchain path and device serial as appropriate. A connected LED acknowledgement, actual local audio-LLM inference, live provider calls, appliance recordings and physical hardware qualification remain outstanding.
+
+[Platform CI for source commit 64873b3](https://github.com/Passive-Coder/chimey/actions/runs/37223117644) also passed all desktop release builds, web release, iOS simulator, Flutter analysis and 38 tests, and five server tests. The 12 instrumentation and three native unit results were established locally rather than by this platform workflow.

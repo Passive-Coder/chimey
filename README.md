@@ -21,7 +21,7 @@ For optional online assistance, follow [server setup](server/README.md). Every c
 
 ## Compatibility and validation
 
-Android 8+ supports the native recognition pipeline. Full audio reasoning requires a supported 64-bit device, suitable model artifact, and sufficient RAM/storage; it is not promised on every phone. Web and iOS currently provide responsive UI and foreground audio visualization, with text internet research when a service is configured. Native iOS recognition/background model integration remains unimplemented. See [requirement coverage](docs/requirements.md), [native test evidence](docs/native-validation.md), [model contract](docs/yamnet.md), and [audio assistance](docs/audio-assistance.md).
+Android 8+ supports the native recognition pipeline. Full audio reasoning requires a supported 64-bit device, suitable model artifact, and sufficient RAM/storage; it is not promised on every phone. Web, iOS, macOS, Windows, and Linux have responsive UI and foreground audio visualization paths, with text internet research when a service is configured. macOS has a local release build; Windows/Linux CI qualification is pending. Native iOS recognition/background model integration remains unimplemented. See [platform capabilities](docs/compatibility.md), [requirement coverage](docs/requirements.md), [native test evidence](docs/native-validation.md), [model contract](docs/yamnet.md), and [audio assistance](docs/audio-assistance.md).
 
 A single microphone cannot reliably locate sound. Directional edge density is simulated in demo mode; live mono energy drives all edges equally. dBFS is relative digital amplitude rather than calibrated environmental SPL.
 
@@ -31,6 +31,7 @@ flutter test
 flutter build web --pwa-strategy none
 flutter build apk --debug
 flutter build ios --simulator
+flutter build macos
 cd server && npm test
 ```
 

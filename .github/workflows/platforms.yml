@@ -1,0 +1,41 @@
+name: Platform builds
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: platforms-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: linux
+          - os: windows-2022
+            target: windows
+          - os: macos-14
+            target: macos
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: '3.38.7'
+          channel: stable
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev libstdc++-12-dev pulseaudio-utils
+      - run: flutter pub get
+      - if: runner.os == 'Linux'
+        run: flutter analyze && flutter test && node --test server/server.test.mjs
+      - run: flutter build ${{ matrix.target }} --release
+      - if: runner.os == 'Linux'
+        run: flutter build web --pwa-strategy none
+      - if: runner.os == 'macOS'
+        run: flutter build ios --simulator

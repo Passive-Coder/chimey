@@ -4,9 +4,15 @@ import 'recognition.dart';
 import 'runtime.dart';
 
 class SoundLibrary extends StatefulWidget {
-  const SoundLibrary({super.key, required this.runtime, this.suggestedName});
+  const SoundLibrary({
+    super.key,
+    required this.runtime,
+    this.suggestedName,
+    this.beginEnrollment = false,
+  });
   final SoundRuntime runtime;
   final String? suggestedName;
+  final bool beginEnrollment;
   @override
   State<SoundLibrary> createState() => _SoundLibraryState();
 }
@@ -16,7 +22,7 @@ class _SoundLibraryState extends State<SoundLibrary> {
   @override
   void initState() {
     super.initState();
-    if (widget.suggestedName != null) {
+    if (widget.beginEnrollment || widget.suggestedName != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) enroll(suggestedName: widget.suggestedName);
       });

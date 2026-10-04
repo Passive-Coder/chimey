@@ -63,15 +63,28 @@ class SoundRuntime extends ChangeNotifier {
   final store = SoundStore(PreferenceStorage());
   StreamSubscription<Map<Object?, Object?>>? _subscription;
   List<double>? features;
+  RecognitionKind? outcome;
   String response = 'Listening for a sound.', state = 'stopped';
   String? error;
   double rms = 0, inferenceMs = 0;
   int featureSequence = 0;
   bool _closed = false;
+  bool readyToListen = false;
+  bool _eventStreamHealthy = false;
+  bool get canListen =>
+      !_closed &&
+      store.loaded &&
+      store.error == null &&
+      (!nativeRecognition || readyToListen);
   Future<void> initialize() async {
+    readyToListen = false;
+    _eventStreamHealthy = false;
     await store.load();
     if (_closed || !nativeRecognition) return;
     try {
+      if (store.error != null) {
+        throw StateError(store.error!);
+      }
       await NativeRuntime.sync(store);
       final history = await NativeRuntime.channel.invokeMethod<String>(
         'events',
@@ -88,12 +101,28 @@ class SoundRuntime extends ChangeNotifier {
       _subscription = NativeRuntime.events.listen(
         _receive,
         onError: (Object e) {
-          error = e.toString();
-          _notify();
+          unawaited(_failRecognition(e));
         },
+        onDone: () => unawaited(
+          _failRecognition(StateError('Native audio connection closed')),
+        ),
       );
+      _eventStreamHealthy = true;
+      readyToListen = true;
     } catch (e) {
-      error = 'Recognition unavailable: $e';
+      await _failRecognition(e);
+    }
+  }
+
+  Future<void> _failRecognition(Object failure) async {
+    readyToListen = false;
+    _eventStreamHealthy = false;
+    error = 'Recognition unavailable: $failure';
+    _notify();
+    try {
+      await NativeRuntime.channel.invokeMethod<void>('stop');
+    } catch (stopError) {
+      error = '$error. Listening could not be stopped: $stopError';
       _notify();
     }
   }
@@ -108,6 +137,11 @@ class SoundRuntime extends ChangeNotifier {
         inferenceMs = (e['elapsedMs'] as num).toDouble();
         featureSequence++;
       case 'recognition':
+        outcome = switch (e['kind']) {
+          'personal' => RecognitionKind.personal,
+          'category' => RecognitionKind.category,
+          _ => RecognitionKind.unknown,
+        };
         response = switch (e['kind']) {
           'personal' => 'I heard ${e['label']}.',
           'category' => 'This sounds like ${e['label']}.',
@@ -115,6 +149,11 @@ class SoundRuntime extends ChangeNotifier {
         };
       case 'status':
         state = e['state'].toString();
+        if (state == 'stopped' || state == 'error') {
+          features = null;
+          rms = 0;
+          outcome = null;
+        }
         if (e['error'] != null) error = e['error'].toString();
       case 'event':
         unawaited(_saveEvent(e['event'] as String));
@@ -168,10 +207,12 @@ class SoundRuntime extends ChangeNotifier {
 
   Future<void> _sync() async {
     if (nativeRecognition) {
+      readyToListen = false;
       try {
         await NativeRuntime.sync(store);
+        readyToListen = _eventStreamHealthy;
       } catch (e) {
-        await NativeRuntime.channel.invokeMethod('stop');
+        await _failRecognition(e);
         rethrow;
       }
     }

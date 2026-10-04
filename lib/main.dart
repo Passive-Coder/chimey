@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'audio.dart';
 import 'visuals.dart';
 import 'sounds/runtime.dart';
+import 'sounds/models.dart';
 import 'sounds/library.dart';
 import 'sounds/assist.dart';
 
@@ -191,6 +192,18 @@ class _ChimeyHomeState extends State<ChimeyHome>
   }
 
   Future<void> useMicrophone() async {
+    if (nativeRecognition && !runtime.canListen) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            runtime.error ??
+                runtime.store.error ??
+                'Wait for your sound library to finish loading before listening.',
+          ),
+        ),
+      );
+      return;
+    }
     await audio.start();
   }
 
@@ -569,6 +582,19 @@ class _ChimeyHomeState extends State<ChimeyHome>
             : 'Demo response · no notification sent',
         style: const TextStyle(fontSize: 10, color: muted, letterSpacing: .3),
       ),
+      if (liveMode &&
+          nativeRecognition &&
+          listening &&
+          runtime.outcome == RecognitionKind.unknown)
+        TextButton.icon(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => SoundAssist(runtime: runtime),
+            ),
+          ),
+          icon: const Icon(Icons.help_outline_rounded),
+          label: const Text('Explain or label this sound'),
+        ),
       const SizedBox(height: 28),
       Wrap(
         alignment: WrapAlignment.center,

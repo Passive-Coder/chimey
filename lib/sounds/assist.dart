@@ -203,6 +203,24 @@ class _SoundAssistState extends State<SoundAssist> {
         const Text(
           'The audio model receives the last eight seconds of microphone audio on this device. Explanations never trigger a sound rule. Confirm a source, then teach its distinct sound in your library.',
         ),
+        const SizedBox(height: 16),
+        OutlinedButton.icon(
+          onPressed: nativeRecognition && !busy
+              ? () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => SoundLibrary(
+                      runtime: widget.runtime,
+                      beginEnrollment: true,
+                    ),
+                  ),
+                )
+              : null,
+          icon: const Icon(Icons.edit_outlined),
+          label: const Text('Label and teach this sound'),
+        ),
+        const Text(
+          'You can give an unfamiliar sound your own label. A model explanation is optional; repeated acoustic examples still need validation.',
+        ),
         const SizedBox(height: 24),
         Text(
           nativeRecognition

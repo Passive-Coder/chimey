@@ -27,3 +27,7 @@ The local LLM bridge uses actual audio bytes. A successful inference with an aut
 ## Desktop and platform builds
 
 [Platform CI for source commit 45308f2](https://github.com/Passive-Coder/chimey/actions/runs/37220564959) passed Linux, Windows, and macOS release builds, web release build, iOS simulator build, Flutter analysis and 32 Flutter tests, and five Node server tests. A local macOS release build also passed and the native animated UI was inspected. These results qualify build integration; they do not expand Android-only recognition/model capabilities to other platforms or establish physical device accuracy.
+
+## Unfamiliar-sound and acoustic regression stage
+
+All 38 Flutter tests passed with clean analysis. The full eight-test Android instrumentation suite and three native unit tests passed. `AcousticFixtureTest` passed actual model inference and service matching on synthetic signals; [acoustic validation](acoustic-validation.md) records inputs, artifact provenance, observed similarities, and reproduction steps. Labeling without a model still requires calibration, and an attempted microphone restart after corrupt primary storage is blocked. Full audio-model/provider/physical-device qualification remains pending.

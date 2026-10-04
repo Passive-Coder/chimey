@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'audio.dart';
 import 'visuals.dart';
+import 'sounds/runtime.dart';
+import 'sounds/library.dart';
 
 void main() => runApp(const MyApp());
 
@@ -133,7 +135,10 @@ class _ChimeyHomeState extends State<ChimeyHome>
   int tab = 0, sceneIndex = 0, direction = 0;
   bool listening = true;
   bool liveMode = false;
-  final audio = AudioSession();
+  final audio = AudioSession(
+    deviceFactory: () => nativeRecognition ? NativeCapture() : RecordCapture(),
+  );
+  final runtime = SoundRuntime();
   double level = .18, hz = 180;
   final profiles = [
     SoundProfile('Doorbell', 'A visitor at your door', Icons.doorbell_outlined),
@@ -160,6 +165,12 @@ class _ChimeyHomeState extends State<ChimeyHome>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     audio.addListener(audioChanged);
+    runtime.addListener(runtimeChanged);
+    unawaited(runtime.initialize());
+  }
+
+  void runtimeChanged() {
+    if (mounted) setState(() {});
   }
 
   void audioChanged() {
@@ -183,7 +194,7 @@ class _ChimeyHomeState extends State<ChimeyHome>
   }
 
   void selectTab(int index) {
-    if (index != 0 && (liveMode || audio.starting)) {
+    if (!nativeRecognition && index != 0 && (liveMode || audio.starting)) {
       unawaited(audio.stop());
       liveMode = false;
       listening = false;
@@ -205,7 +216,8 @@ class _ChimeyHomeState extends State<ChimeyHome>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed &&
+    if (!nativeRecognition &&
+        state != AppLifecycleState.resumed &&
         (audio.active || audio.starting)) {
       unawaited(audio.stop());
     }
@@ -216,6 +228,8 @@ class _ChimeyHomeState extends State<ChimeyHome>
     WidgetsBinding.instance.removeObserver(this);
     audio.removeListener(audioChanged);
     audio.dispose();
+    runtime.removeListener(runtimeChanged);
+    runtime.dispose();
     clock.dispose();
     super.dispose();
   }
@@ -514,7 +528,9 @@ class _ChimeyHomeState extends State<ChimeyHome>
         child: Text(
           listening
               ? (liveMode
-                    ? (level > .65
+                    ? (nativeRecognition
+                          ? runtime.response
+                          : level > .65
                           ? 'It’s getting louder around you.'
                           : 'Your space sounds calm.')
                     : scene.response)
@@ -535,7 +551,9 @@ class _ChimeyHomeState extends State<ChimeyHome>
       Text(
         listening
             ? (liveMode
-                  ? 'The light follows your microphone in real time.'
+                  ? (nativeRecognition
+                        ? 'Personal matches can deliver your configured response.'
+                        : 'The light follows your microphone in real time.')
                   : scene.detail)
             : 'Take a moment. I’ll be here when you’re ready.',
         textAlign: TextAlign.center,
@@ -866,6 +884,16 @@ class _ChimeyHomeState extends State<ChimeyHome>
               style: TextStyle(color: muted),
             ),
             const SizedBox(height: 26),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => SoundLibrary(runtime: runtime),
+                ),
+              ),
+              icon: const Icon(Icons.library_music_outlined),
+              label: const Text('Manage personal sounds & real actions'),
+            ),
+            const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: teachSound,
               icon: const Icon(Icons.add_rounded, size: 18),

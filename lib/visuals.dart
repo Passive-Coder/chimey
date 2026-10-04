@@ -230,25 +230,34 @@ class _FieldPainter extends CustomPainter {
 }
 
 class Spectrum extends StatelessWidget {
-  const Spectrum({super.key, required this.level, required this.frequency});
+  const Spectrum({
+    super.key,
+    required this.level,
+    required this.frequency,
+    this.bands,
+  });
   final double level, frequency;
+  final List<double>? bands;
   @override
   Widget build(BuildContext context) => SizedBox(
     height: 30,
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: List.generate(
-        40,
+        bands?.isNotEmpty == true ? bands!.length : 40,
         (i) => Expanded(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 1.5),
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              height:
-                  3 +
-                  24 *
-                      level *
-                      (.3 + .7 * math.sin(i * .42 + frequency * 5).abs()),
+              duration: Duration(
+                milliseconds: MediaQuery.disableAnimationsOf(context) ? 0 : 140,
+              ),
+              height: bands?.isNotEmpty == true
+                  ? 3 + 24 * bands![i]
+                  : 3 +
+                        24 *
+                            level *
+                            (.3 + .7 * math.sin(i * .42 + frequency * 5).abs()),
               decoration: BoxDecoration(
                 color: cyan.withValues(alpha: .25 + .55 * i / 40),
                 borderRadius: BorderRadius.circular(2),

@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'audio.dart';
 import 'visuals.dart';
 
 void main() => runApp(const MyApp());
@@ -20,7 +22,7 @@ class MyApp extends StatelessWidget {
         surface: surface,
         primary: cyan,
       ),
-      fontFamily: 'Helvetica Neue',
+      fontFamily: 'Inter',
       textTheme: const TextTheme(
         bodyMedium: TextStyle(fontSize: 14, height: 1.5),
       ),
@@ -123,13 +125,15 @@ class ChimeyHome extends StatefulWidget {
 }
 
 class _ChimeyHomeState extends State<ChimeyHome>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController clock = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 120),
   )..repeat();
   int tab = 0, sceneIndex = 0, direction = 0;
   bool listening = true;
+  bool liveMode = false;
+  final audio = AudioSession();
   double level = .18, hz = 180;
   final profiles = [
     SoundProfile('Doorbell', 'A visitor at your door', Icons.doorbell_outlined),
@@ -149,16 +153,77 @@ class _ChimeyHomeState extends State<ChimeyHome>
   DemoScene get scene => scenes[sceneIndex];
   List<double> get edges => List.generate(
     4,
-    (i) => listening ? level * (i == direction ? 1 : .14) : .02,
+    (i) => listening ? level * (liveMode || i == direction ? 1 : .14) : .02,
   );
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    audio.addListener(audioChanged);
+  }
+
+  void audioChanged() {
+    if (!mounted) return;
+    setState(() {
+      if (audio.active) {
+        liveMode = true;
+        listening = true;
+        level = level * .65 + audio.frame.level * .35;
+        hz = audio.frame.frequency;
+      } else if (liveMode && !audio.starting) {
+        listening = false;
+        level = 0;
+        hz = 0;
+      }
+    });
+  }
+
+  Future<void> useMicrophone() async {
+    await audio.start();
+  }
+
+  void selectTab(int index) {
+    if (index != 0 && (liveMode || audio.starting)) {
+      unawaited(audio.stop());
+      liveMode = false;
+      listening = false;
+    }
+    setState(() => tab = index);
+  }
+
+  void toggleListening() {
+    if (liveMode || audio.starting) {
+      if (listening || audio.starting) {
+        unawaited(audio.stop());
+      } else {
+        unawaited(useMicrophone());
+      }
+    } else {
+      setState(() => listening = !listening);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed &&
+        (audio.active || audio.starting)) {
+      unawaited(audio.stop());
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    audio.removeListener(audioChanged);
+    audio.dispose();
     clock.dispose();
     super.dispose();
   }
 
   void chooseScene(int index) {
+    unawaited(audio.stop());
     setState(() {
+      liveMode = false;
       sceneIndex = index;
       level = scene.level;
       hz = scene.hz;
@@ -204,7 +269,7 @@ class _ChimeyHomeState extends State<ChimeyHome>
   );
   @override
   Widget build(BuildContext context) {
-    final wide = MediaQuery.sizeOf(context).width >= 900;
+    final wide = MediaQuery.sizeOf(context).width >= 1050;
     final reduced = MediaQuery.disableAnimationsOf(context);
     if (reduced && clock.isAnimating) {
       clock.stop();
@@ -215,64 +280,6 @@ class _ChimeyHomeState extends State<ChimeyHome>
     return Scaffold(
       body: Stack(
         children: [
-          SafeArea(
-            child: Column(
-              children: [
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    wide ? 48 : 26,
-                    wide ? 32 : 22,
-                    wide ? 48 : 26,
-                    20,
-                  ),
-                  child: header(wide),
-                ),
-                Expanded(
-                  child: AnimatedSwitcher(
-                    duration: Duration(milliseconds: reduced ? 0 : 300),
-                    child: tab == 0
-                        ? listenView(wide, reduced)
-                        : tab == 1
-                        ? soundsView(wide)
-                        : activityView(wide),
-                  ),
-                ),
-                if (!wide) mobileNavigation(),
-                if (wide)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(48, 16, 48, 28),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.shield_outlined,
-                          size: 14,
-                          color: muted,
-                        ),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Your sounds stay yours.',
-                          style: TextStyle(color: muted, fontSize: 12),
-                        ),
-                        const Spacer(),
-                        Text(
-                          '${profiles.length} sounds in your space',
-                          style: const TextStyle(color: muted, fontSize: 12),
-                        ),
-                        const SizedBox(width: 24),
-                        const Text(
-                          'UI PROTOTYPE',
-                          style: TextStyle(
-                            color: muted,
-                            fontSize: 10,
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
           Positioned.fill(
             child: EdgeLight(
               clock: clock,
@@ -281,6 +288,66 @@ class _ChimeyHomeState extends State<ChimeyHome>
               edges: edges,
               active: listening,
               reducedMotion: reduced,
+            ),
+          ),
+          RepaintBoundary(
+            child: SafeArea(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      wide ? 48 : 26,
+                      wide ? 32 : 22,
+                      wide ? 48 : 26,
+                      20,
+                    ),
+                    child: header(wide),
+                  ),
+                  Expanded(
+                    child: AnimatedSwitcher(
+                      duration: Duration(milliseconds: reduced ? 0 : 300),
+                      child: tab == 0
+                          ? listenView(wide, reduced)
+                          : tab == 1
+                          ? soundsView(wide)
+                          : activityView(wide),
+                    ),
+                  ),
+                  if (!wide) mobileNavigation(),
+                  if (wide)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(48, 16, 48, 28),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.shield_outlined,
+                            size: 14,
+                            color: muted,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Your sounds stay yours.',
+                            style: TextStyle(color: muted, fontSize: 12),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '${profiles.length} sounds in your space',
+                            style: const TextStyle(color: muted, fontSize: 12),
+                          ),
+                          const SizedBox(width: 24),
+                          const Text(
+                            'UI PROTOTYPE',
+                            style: TextStyle(
+                              color: muted,
+                              fontSize: 10,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ],
@@ -292,14 +359,30 @@ class _ChimeyHomeState extends State<ChimeyHome>
     children: [
       const Icon(Icons.graphic_eq_rounded, color: cyan, size: 27),
       const SizedBox(width: 10),
-      const Text(
-        'chimey',
-        style: TextStyle(
-          fontSize: 29,
-          fontWeight: FontWeight.w600,
-          letterSpacing: -1.2,
+      if (wide)
+        const Text(
+          'chimey',
+          style: TextStyle(
+            fontSize: 29,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -1.2,
+          ),
         ),
-      ),
+      if (!wide)
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: const Text(
+              'chimey',
+              style: TextStyle(
+                fontSize: 29,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -1.2,
+              ),
+            ),
+          ),
+        ),
       if (wide) ...[
         const SizedBox(width: 65),
         navigationItem(0, 'Listen', Icons.blur_on_rounded),
@@ -307,8 +390,12 @@ class _ChimeyHomeState extends State<ChimeyHome>
         navigationItem(2, 'Activity', Icons.history_rounded),
       ],
       const Spacer(),
-      if (wide) const StatusPill(label: 'Demo mode', dot: true),
-      if (!wide) const Text('DEMO', style: eyebrow),
+      if (wide)
+        StatusPill(
+          label: liveMode ? 'Live microphone' : 'Demo mode',
+          dot: true,
+        ),
+      if (!wide) Text(liveMode ? 'LIVE' : 'DEMO', style: eyebrow),
       const SizedBox(width: 8),
       IconButton(
         onPressed: showInfo,
@@ -320,7 +407,7 @@ class _ChimeyHomeState extends State<ChimeyHome>
   Widget navigationItem(int index, String label, IconData icon) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 4),
     child: TextButton(
-      onPressed: () => setState(() => tab = index),
+      onPressed: () => selectTab(index),
       style: TextButton.styleFrom(
         foregroundColor: tab == index ? Colors.white : muted,
         backgroundColor: tab == index
@@ -347,7 +434,7 @@ class _ChimeyHomeState extends State<ChimeyHome>
   );
   Widget mobileTab(int index, String label, IconData icon) => Expanded(
     child: TextButton(
-      onPressed: () => setState(() => tab = index),
+      onPressed: () => selectTab(index),
       style: TextButton.styleFrom(foregroundColor: tab == index ? cyan : muted),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -407,9 +494,11 @@ class _ChimeyHomeState extends State<ChimeyHome>
           ),
         ],
       ),
-      SizedBox(height: wide ? 34 : 12),
+      SizedBox(height: wide ? 20 : 12),
       SizedBox(
-        height: wide ? 265 : 185,
+        height: wide
+            ? (MediaQuery.sizeOf(context).height < 800 ? 150 : 205)
+            : 175,
         width: wide ? 400 : 300,
         child: SoundField(
           clock: clock,
@@ -423,8 +512,16 @@ class _ChimeyHomeState extends State<ChimeyHome>
       AnimatedSwitcher(
         duration: Duration(milliseconds: reduced ? 0 : 350),
         child: Text(
-          listening ? scene.response : 'Listening paused.',
-          key: ValueKey('$listening-$sceneIndex'),
+          listening
+              ? (liveMode
+                    ? (level > .65
+                          ? 'It’s getting louder around you.'
+                          : 'Your space sounds calm.')
+                    : scene.response)
+              : 'Listening paused.',
+          key: ValueKey(
+            '$listening-$sceneIndex-$liveMode-${liveMode && level > .65}',
+          ),
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: wide ? 38 : 28,
@@ -437,14 +534,18 @@ class _ChimeyHomeState extends State<ChimeyHome>
       const SizedBox(height: 14),
       Text(
         listening
-            ? scene.detail
+            ? (liveMode
+                  ? 'The light follows your microphone in real time.'
+                  : scene.detail)
             : 'Take a moment. I’ll be here when you’re ready.',
         textAlign: TextAlign.center,
         style: const TextStyle(color: muted, fontSize: 14),
       ),
       const SizedBox(height: 12),
       Text(
-        sceneIndex == 0
+        liveMode
+            ? 'Live audio · analyzed on this device'
+            : sceneIndex == 0
             ? 'Simulated environment'
             : 'Demo response · no notification sent',
         style: const TextStyle(fontSize: 10, color: muted, letterSpacing: .3),
@@ -455,7 +556,9 @@ class _ChimeyHomeState extends State<ChimeyHome>
         runSpacing: 12,
         children: [
           FilledButton.icon(
-            onPressed: () => setState(() => listening = !listening),
+            onPressed: audio.starting || audio.stopping
+                ? null
+                : toggleListening,
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xffe0f6f6),
               foregroundColor: const Color(0xff10191c),
@@ -482,7 +585,7 @@ class _ChimeyHomeState extends State<ChimeyHome>
           ),
         ],
       ),
-      SizedBox(height: wide ? 46 : 28),
+      SizedBox(height: wide ? 28 : 28),
       const Divider(),
       const SizedBox(height: 20),
       Row(
@@ -490,8 +593,10 @@ class _ChimeyHomeState extends State<ChimeyHome>
           Expanded(
             child: metric(
               'SOUND LEVEL',
-              '${(level * 70 + 20).round()}',
-              'demo dB',
+              liveMode
+                  ? audio.frame.dbfs.toStringAsFixed(0)
+                  : '${(level * 70 + 20).round()}',
+              liveMode ? 'dBFS · relative' : 'demo dB',
             ),
           ),
           Expanded(
@@ -506,14 +611,18 @@ class _ChimeyHomeState extends State<ChimeyHome>
           Expanded(
             child: metric(
               'DIRECTION',
-              ['Front', 'Right', 'Behind', 'Left'][direction],
-              'simulated',
+              liveMode ? '—' : ['Front', 'Right', 'Behind', 'Left'][direction],
+              liveMode ? 'not measured' : 'simulated',
             ),
           ),
         ],
       ),
       const SizedBox(height: 18),
-      Spectrum(level: listening ? level : .05, frequency: hz / 4000),
+      Spectrum(
+        level: listening ? level : .05,
+        frequency: hz / 4000,
+        bands: liveMode ? audio.frame.bands : null,
+      ),
     ],
   );
   Widget metric(String label, String value, String unit) => Column(
@@ -552,6 +661,42 @@ class _ChimeyHomeState extends State<ChimeyHome>
         'See how Chimey responds to your space.',
         style: TextStyle(color: muted, fontSize: 12),
       ),
+      const SizedBox(height: 12),
+      OutlinedButton.icon(
+        onPressed: audio.starting || audio.stopping
+            ? null
+            : () {
+                if (liveMode) {
+                  chooseScene(0);
+                } else {
+                  unawaited(useMicrophone());
+                }
+              },
+        icon: Icon(
+          liveMode ? Icons.science_outlined : Icons.mic_none_rounded,
+          size: 17,
+        ),
+        label: Text(
+          audio.starting
+              ? 'Connecting…'
+              : liveMode
+              ? 'Use demo'
+              : 'Use microphone',
+        ),
+      ),
+      if (audio.starting)
+        TextButton(
+          onPressed: () => unawaited(audio.stop()),
+          child: const Text('Cancel connection'),
+        ),
+      if (audio.error != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Text(
+            audio.error!,
+            style: const TextStyle(color: Color(0xffffc08c), fontSize: 11),
+          ),
+        ),
       const SizedBox(height: 20),
       ...List.generate(
         scenes.length,
@@ -603,73 +748,95 @@ class _ChimeyHomeState extends State<ChimeyHome>
       const SizedBox(height: 18),
       const Divider(),
       const SizedBox(height: 18),
-      Text('SHAPE THE SOUND', style: eyebrow),
-      const SizedBox(height: 16),
-      Row(
-        children: [
-          const Text('Level', style: TextStyle(color: muted, fontSize: 12)),
-          const Spacer(),
-          Text(
-            '${(level * 70 + 20).round()} demo dB',
-            style: const TextStyle(fontSize: 12),
-          ),
-        ],
-      ),
-      Slider(
-        value: level,
-        min: .03,
-        max: 1,
-        semanticFormatterCallback: (v) =>
-            '${(v * 70 + 20).round()} simulated decibels',
-        onChanged: (v) => setState(() => level = v),
-      ),
-      Row(
-        children: [
-          const Text('Frequency', style: TextStyle(color: muted, fontSize: 12)),
-          const Spacer(),
-          Text('${hz.round()} Hz', style: const TextStyle(fontSize: 12)),
-        ],
-      ),
-      Slider(
-        value: hz,
-        min: 80,
-        max: 4000,
-        onChanged: (v) => setState(() => hz = v),
-      ),
-      const Text(
-        'Demo direction',
-        style: TextStyle(color: muted, fontSize: 12),
-      ),
-      const SizedBox(height: 10),
-      Wrap(
-        spacing: 6,
-        runSpacing: 6,
-        children: List.generate(
-          4,
-          (i) => ChoiceChip(
-            label: Text(['Front', 'Right', 'Behind', 'Left'][i]),
-            selected: direction == i,
-            onSelected: (_) => setState(() => direction = i),
-            showCheckmark: false,
-            labelStyle: TextStyle(
-              fontSize: 11,
-              color: direction == i ? cyan : muted,
+      if (liveMode) ...[
+        Text('LIVE SOUND', style: eyebrow),
+        const SizedBox(height: 14),
+        const Text(
+          'Audio stays on this device.',
+          style: TextStyle(fontSize: 17),
+        ),
+        const SizedBox(height: 10),
+        const Text(
+          'Level and frequency shape the light. A single microphone does not measure direction, so every edge responds equally.',
+          style: TextStyle(color: muted, fontSize: 12),
+        ),
+        const SizedBox(height: 14),
+        const Text(
+          'Relative dBFS · no recording saved\nNo recognition or actions in live mode.',
+          style: TextStyle(color: muted, fontSize: 11),
+        ),
+      ] else ...[
+        Text('SHAPE THE SOUND', style: eyebrow),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            const Text('Level', style: TextStyle(color: muted, fontSize: 12)),
+            const Spacer(),
+            Text(
+              '${(level * 70 + 20).round()} demo dB',
+              style: const TextStyle(fontSize: 12),
             ),
-            selectedColor: const Color(0xff203037),
-            backgroundColor: surface,
-            side: BorderSide(
-              color: direction == i
-                  ? const Color(0xff416068)
-                  : const Color(0xff262a35),
+          ],
+        ),
+        Slider(
+          value: level,
+          min: .03,
+          max: 1,
+          semanticFormatterCallback: (v) =>
+              '${(v * 70 + 20).round()} simulated decibels',
+          onChanged: (v) => setState(() => level = v),
+        ),
+        Row(
+          children: [
+            const Text(
+              'Frequency',
+              style: TextStyle(color: muted, fontSize: 12),
+            ),
+            const Spacer(),
+            Text('${hz.round()} Hz', style: const TextStyle(fontSize: 12)),
+          ],
+        ),
+        Slider(
+          value: hz,
+          min: 80,
+          max: 4000,
+          onChanged: (v) => setState(() => hz = v),
+        ),
+        const Text(
+          'Demo direction',
+          style: TextStyle(color: muted, fontSize: 12),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: List.generate(
+            4,
+            (i) => ChoiceChip(
+              label: Text(['Front', 'Right', 'Behind', 'Left'][i]),
+              selected: direction == i,
+              onSelected: (_) => setState(() => direction = i),
+              showCheckmark: false,
+              labelStyle: TextStyle(
+                fontSize: 11,
+                color: direction == i ? cyan : muted,
+              ),
+              selectedColor: const Color(0xff203037),
+              backgroundColor: surface,
+              side: BorderSide(
+                color: direction == i
+                    ? const Color(0xff416068)
+                    : const Color(0xff262a35),
+              ),
             ),
           ),
         ),
-      ),
-      const SizedBox(height: 16),
-      const Text(
-        'Louder on one side. More light on that edge.',
-        style: TextStyle(color: muted, fontSize: 11),
-      ),
+        const SizedBox(height: 16),
+        const Text(
+          'Louder on one side. More light on that edge.',
+          style: TextStyle(color: muted, fontSize: 11),
+        ),
+      ],
     ],
   );
   Widget soundsView(bool wide) => SingleChildScrollView(

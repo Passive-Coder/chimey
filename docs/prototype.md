@@ -23,3 +23,12 @@ A foreground microphone option will request permission on explicit user action a
 3. Foreground audio and spectral analysis; verify, inspect responsive rendering, document limits, commit and push.
 
 Validate with flutter analyze, flutter test, release web build, and desktop/phone browser interactions. Report native build or device verification limits explicitly.
+
+## Verification outcome
+
+- Flutter analyze: no issues.
+- Flutter test: 14 passing tests.
+- Web release, iOS simulator, Android debug APK: built successfully.
+- Browser: phone listening view, demo response, and mobile sound enrollment inspected. Desktop and mobile screenshots are in screenshots/.
+- Android's initial Gradle source-distribution download timed out. Switching to the same-version binary distribution reused the installed cache and the APK build passed.
+- Physical-device microphone input and calibration are unverified. Audio processing and capture cancellation are covered by synthetic PCM and injected capture-device tests.

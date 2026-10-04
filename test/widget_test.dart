@@ -3,6 +3,22 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:chimey/main.dart';
 
 void main() {
+  for (final width in [320.0, 768.0, 1050.0]) {
+    testWidgets('core views fit a $width pixel viewport', (tester) async {
+      tester.view.physicalSize = Size(width, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(const MyApp());
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.text('Sounds'));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.text('Activity'));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(tester.takeException(), isNull);
+    });
+  }
   testWidgets('listening can pause and resume', (tester) async {
     tester.view.physicalSize = const Size(1280, 900);
     tester.view.devicePixelRatio = 1;

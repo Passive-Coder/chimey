@@ -583,17 +583,20 @@ class _ChimeyHomeState extends State<ChimeyHome>
         style: const TextStyle(fontSize: 10, color: muted, letterSpacing: .3),
       ),
       if (liveMode &&
-          nativeRecognition &&
           listening &&
-          runtime.outcome == RecognitionKind.unknown)
+          (!nativeRecognition || runtime.outcome == RecognitionKind.unknown))
         TextButton.icon(
           onPressed: () => Navigator.of(context).push(
             MaterialPageRoute<void>(
-              builder: (_) => SoundAssist(runtime: runtime),
+              builder: (_) => SoundAssist(runtime: runtime, audio: audio),
             ),
           ),
           icon: const Icon(Icons.help_outline_rounded),
-          label: const Text('Explain or label this sound'),
+          label: Text(
+            nativeRecognition
+                ? 'Explain or label this sound'
+                : 'Understand this sound',
+          ),
         ),
       const SizedBox(height: 28),
       Wrap(
@@ -926,7 +929,7 @@ class _ChimeyHomeState extends State<ChimeyHome>
             TextButton.icon(
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => SoundAssist(runtime: runtime),
+                  builder: (_) => SoundAssist(runtime: runtime, audio: audio),
                 ),
               ),
               icon: const Icon(Icons.auto_awesome_outlined),

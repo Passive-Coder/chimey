@@ -10,7 +10,7 @@ The current goal is the full product, superseding docs/prototype.md's old scope.
 | Personal sound enrollment and reusable matching | Implemented; synthetic real-feature matching passed; hardware accuracy pending | multi-example recording, calibrated match/abstention |
 | Four recognition outcomes and safe rule gates | Four outcomes implemented; tests pass | tests and actual recognition events |
 | On-device audio-capable LLM full configuration | Native audio pipeline implemented; artifact/device qualification pending | actual audio content inference on qualified device |
-| Optional internet sound identification/context | Consent UI and server implemented; live credentials pending | consented clip analysis, separate research, citations |
+| Optional internet sound identification/context | Consent UI, Android/native and portable foreground clip paths, and server implemented; live credentials pending | consented clip analysis, separate research, citations |
 | Continuous recognition, responsive actions | Android service implemented; emulator lifecycle passed | service capture/inference/action timing |
 | Valid Android microphone foreground service | Implemented; emulator lifecycle passed | visible start, persistent notification, background runtime |
 | Convenience notifications | Real model-to-Android notification posting and durable cooldown verified on emulator; physical delivery pending | real device delivery |

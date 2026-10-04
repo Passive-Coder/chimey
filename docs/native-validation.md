@@ -57,3 +57,7 @@ adb -s emulator-5554 shell dumpsys vibrator_manager
 Replace the toolchain path and device serial as appropriate. A connected LED acknowledgement, actual local audio-LLM inference, live provider calls, appliance recordings and physical hardware qualification remain outstanding.
 
 [Platform CI for source commit 64873b3](https://github.com/Passive-Coder/chimey/actions/runs/37223117644) also passed all desktop release builds, web release, iOS simulator, Flutter analysis and 38 tests, and five server tests. The 12 instrumentation and three native unit results were established locally rather than by this platform workflow.
+
+## Portable foreground assistance
+
+All 44 Flutter tests passed after adding a bounded foreground PCM buffer and explicit recent-audio sharing on other platforms. New tests verify WAV format and split PCM samples, eight-second retention, clear-on-stop/interruption/restart, consent cancellation, capture stopping during consent, and re-enabling Start microphone after an external stop completes. Web release, Android debug APK build and static analysis passed. The [rendered browser controls](screenshots/portable-assistance.png) were inspected. Transport tests use a mocked assistance response; live cloud inference and per-platform microphone qualification remain unproven.

@@ -10,6 +10,12 @@ Local and online answers are labeled unconfirmed explanations and cannot execute
 
 The Node server implements distinct audio and search requests with source attribution and search-suggestion display. Tests use a provider transport stub, not a claim that cloud inference ran. See server/README.md for credential setup and validation. On-device environmental-sound analysis still needs an audio-enabled artifact and a qualified Android device; the current emulator has approximately 2 GB of RAM and is not a full Gemma qualification target.
 
+## Foreground recent audio on other platforms
+
+Web, iOS and desktop targets now expose Start/Stop microphone in Understand a sound and can share their most recent foreground audio through the same configured service. Live listening also offers Understand this sound directly, preserving the current capture session. A bounded Dart ring retains at most eight seconds of 16 kHz mono PCM in memory, handles split sample bytes, and requires one second before creating a WAV. Stop, interruption, restart and backgrounding clear the buffer. Nothing is written to disk.
+
+A fresh confirmation is required before obtaining the snapshot. Cancel sends nothing; stopping capture while the prompt is open prevents sharing stale audio. Tests verify these boundaries and that an online explanation creates neither a personal rule nor an action event. Actual live cloud responses and microphone behavior on each platform remain separate qualification requirements. Native recognition and on-device LLM inference still require Android.
+
 References:
 - https://ai.google.dev/gemma/docs/gemma-3n
 - https://github.com/google-ai-edge/LiteRT-LM/tree/v0.10.2/kotlin

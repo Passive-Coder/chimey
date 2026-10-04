@@ -11,7 +11,7 @@ chimey uses capability gates rather than presenting unavailable functions as wor
 | Windows | Yes | MediaFoundation through Record plugin | Not integrated | Not integrated | CI release build passed |
 | Linux | Yes | PulseAudio-compatible service plus `parecord`/`pactl` | Not integrated | Not integrated | CI release build passed |
 
-Text-only internet research is available through a configured assistance service on all targets. Sending a recent microphone clip is currently available on Android. Every online request requires explicit confirmation, and an explanation cannot execute a rule.
+Text-only internet research is available through a configured assistance service on all targets. Recent-clip assistance is implemented on all six targets: Android reads its native eight-second buffer; other targets use a bounded foreground PCM buffer and expose Start/Stop microphone controls in Understand a sound. Only a fresh sharing confirmation obtains and sends a WAV snapshot. Stopping, interruption, or app backgrounding clears the foreground buffer. These paths have Flutter contract/lifecycle tests and build evidence; actual microphone quality and live provider responses still need per-platform qualification. Every online request requires explicit confirmation, and an explanation cannot execute a rule.
 
 On Linux, install `pulseaudio-utils` (or your distribution's package providing `parecord` and `pactl`). The app streams PCM rather than recording a file, so this path does not use ffmpeg. Build dependencies include GTK 3, clang, CMake, Ninja, pkg-config, and the C++ toolchain. Desktop builds follow [Flutter's platform instructions](https://docs.flutter.dev/platform-integration/desktop).
 

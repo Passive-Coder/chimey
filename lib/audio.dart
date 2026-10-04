@@ -154,6 +154,62 @@ class RecordCapture implements CaptureDevice {
   Future<void> dispose() => _recorder.dispose();
 }
 
+/// Eight seconds of 16 kHz mono PCM kept only in memory for opt-in assistance.
+class RecentPcmAudio {
+  static const sampleRate = 16000;
+  static const bytesPerSecond = sampleRate * 2;
+  final _ring = Uint8List(bytesPerSecond * 8);
+  int _cursor = 0, _count = 0;
+  int? _lowByte;
+
+  void add(Uint8List bytes) {
+    for (final byte in bytes) {
+      if (_lowByte == null) {
+        _lowByte = byte;
+      } else {
+        _ring[_cursor] = _lowByte!;
+        _ring[_cursor + 1] = byte;
+        _cursor = (_cursor + 2) % _ring.length;
+        _count = math.min(_count + 2, _ring.length);
+        _lowByte = null;
+      }
+    }
+  }
+
+  Uint8List wav() {
+    if (_count < bytesPerSecond) {
+      throw StateError('Listen for at least one second first');
+    }
+    final result = Uint8List(44 + _count);
+    final header = ByteData.sublistView(result);
+    void text(int offset, String value) =>
+        result.setRange(offset, offset + value.length, value.codeUnits);
+    text(0, 'RIFF');
+    header.setUint32(4, 36 + _count, Endian.little);
+    text(8, 'WAVEfmt ');
+    header.setUint32(16, 16, Endian.little);
+    header.setUint16(20, 1, Endian.little);
+    header.setUint16(22, 1, Endian.little);
+    header.setUint32(24, sampleRate, Endian.little);
+    header.setUint32(28, bytesPerSecond, Endian.little);
+    header.setUint16(32, 2, Endian.little);
+    header.setUint16(34, 16, Endian.little);
+    text(36, 'data');
+    header.setUint32(40, _count, Endian.little);
+    final start = (_cursor - _count + _ring.length) % _ring.length;
+    final first = math.min(_count, _ring.length - start);
+    result.setRange(44, 44 + first, _ring, start);
+    result.setRange(44 + first, result.length, _ring);
+    return result;
+  }
+
+  void clear() {
+    _ring.fillRange(0, _ring.length, 0);
+    _cursor = _count = 0;
+    _lowByte = null;
+  }
+}
+
 /// Foreground session. Generation checks cancel starts that outlive navigation,
 /// permission prompts, lifecycle changes, or widget disposal.
 class AudioSession extends ChangeNotifier {
@@ -167,6 +223,14 @@ class AudioSession extends ChangeNotifier {
   int _generation = 0;
   String? error;
   AudioFrame frame = const AudioFrame();
+  final _recent = RecentPcmAudio();
+  Uint8List recentWav() {
+    if (_closed || !active) {
+      throw StateError('Start the microphone before sharing recent audio');
+    }
+    return _recent.wav();
+  }
+
   void _notify() {
     if (!_closed) {
       notifyListeners();
@@ -180,6 +244,7 @@ class AudioSession extends ChangeNotifier {
     starting = true;
     error = null;
     frame = const AudioFrame();
+    _recent.clear();
     final token = ++_generation;
     _notify();
     return _pending = _begin(token);
@@ -208,6 +273,7 @@ class AudioSession extends ChangeNotifier {
           if (!active || _closed) {
             return;
           }
+          _recent.add(bytes);
           final next = analyzer.add(bytes);
           if (next != null) {
             frame = next;
@@ -248,6 +314,7 @@ class AudioSession extends ChangeNotifier {
     starting = false;
     stopping = true;
     frame = const AudioFrame();
+    _recent.clear();
     _notify();
     await _subscription?.cancel();
     _subscription = null;

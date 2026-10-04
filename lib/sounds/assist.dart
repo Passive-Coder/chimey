@@ -3,14 +3,22 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../audio.dart';
 import 'online.dart';
 import 'models.dart';
 import 'library.dart';
 import 'runtime.dart';
 
 class SoundAssist extends StatefulWidget {
-  const SoundAssist({super.key, required this.runtime});
+  const SoundAssist({
+    super.key,
+    required this.runtime,
+    this.audio,
+    this.assistance,
+  });
   final SoundRuntime runtime;
+  final AudioSession? audio;
+  final OnlineAssistance? assistance;
   @override
   State<SoundAssist> createState() => _SoundAssistState();
 }
@@ -19,15 +27,33 @@ class _SoundAssistState extends State<SoundAssist> {
   Map<Object?, Object?> status = {};
   String? error, explanation;
   bool busy = false;
-  final online = OnlineAssistance();
+  late final online = widget.assistance ?? OnlineAssistance();
   final endpoint = TextEditingController();
   final token = TextEditingController();
   final description = TextEditingController();
   OnlineExplanation? onlineResult;
   StreamSubscription<Map<Object?, Object?>>? subscription;
+  bool get listening => nativeRecognition
+      ? widget.runtime.state == 'listening'
+      : widget.audio?.active == true;
+  (bool, bool, bool) get availability => (
+    listening,
+    widget.audio?.starting == true,
+    widget.audio?.stopping == true,
+  );
+  late (bool, bool, bool) wasAvailability;
+  void availabilityChanged() {
+    if (mounted && availability != wasAvailability) {
+      setState(() => wasAvailability = availability);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    wasAvailability = availability;
+    widget.runtime.addListener(availabilityChanged);
+    widget.audio?.addListener(availabilityChanged);
     if (nativeRecognition) {
       unawaited(refresh());
       subscription = NativeRuntime.events
@@ -68,6 +94,8 @@ class _SoundAssistState extends State<SoundAssist> {
 
   @override
   void dispose() {
+    widget.runtime.removeListener(availabilityChanged);
+    widget.audio?.removeListener(availabilityChanged);
     unawaited(subscription?.cancel());
     online.close();
     endpoint.dispose();
@@ -169,7 +197,9 @@ class _SoundAssistState extends State<SoundAssist> {
     try {
       // Snapshot only after consent; the fixed bounded clip is sent once.
       final clip = audio
-          ? await NativeRuntime.channel.invokeMethod<Uint8List>('clip')
+          ? nativeRecognition
+                ? await NativeRuntime.channel.invokeMethod<Uint8List>('clip')
+                : widget.audio?.recentWav()
           : null;
       if (audio && clip == null) {
         throw StateError('No recent recording is available');
@@ -201,7 +231,7 @@ class _SoundAssistState extends State<SoundAssist> {
         ),
         const SizedBox(height: 16),
         const Text(
-          'The audio model receives the last eight seconds of microphone audio on this device. Explanations never trigger a sound rule. Confirm a source, then teach its distinct sound in your library.',
+          'While the microphone runs, the last eight seconds of audio stay in memory. On supported Android devices, the local audio model can explain them. Online analysis shares a clip only after your confirmation. Explanations never trigger a sound rule.',
         ),
         const SizedBox(height: 16),
         OutlinedButton.icon(
@@ -263,11 +293,33 @@ class _SoundAssistState extends State<SoundAssist> {
           ],
         ),
         const SizedBox(height: 24),
+        if (!nativeRecognition && widget.audio != null) ...[
+          OutlinedButton.icon(
+            onPressed: busy || widget.audio!.starting || widget.audio!.stopping
+                ? null
+                : () async {
+                    setState(() => busy = true);
+                    try {
+                      if (widget.audio!.active) {
+                        await widget.audio!.stop();
+                      } else {
+                        await widget.audio!.start();
+                      }
+                      if (mounted) setState(() => error = widget.audio!.error);
+                    } finally {
+                      if (mounted) setState(() => busy = false);
+                    }
+                  },
+            icon: Icon(listening ? Icons.mic_off_outlined : Icons.mic_none),
+            label: Text(listening ? 'Stop microphone' : 'Start microphone'),
+          ),
+          const Text(
+            'Foreground capture only. Listen for at least one second before sharing; stopping or putting the app in the background clears the clip.',
+          ),
+          const SizedBox(height: 16),
+        ],
         FilledButton.icon(
-          onPressed:
-              !busy &&
-                  status['state'] == 'ready' &&
-                  widget.runtime.state == 'listening'
+          onPressed: !busy && status['state'] == 'ready' && listening
               ? () => run('explain')
               : null,
           icon: const Icon(Icons.auto_awesome),
@@ -324,8 +376,7 @@ class _SoundAssistState extends State<SoundAssist> {
         ),
         const SizedBox(height: 16),
         OutlinedButton(
-          onPressed:
-              nativeRecognition && !busy && widget.runtime.state == 'listening'
+          onPressed: !busy && listening
               ? () => onlineRequest(audio: true)
               : null,
           child: const Text('Analyze recent audio online'),

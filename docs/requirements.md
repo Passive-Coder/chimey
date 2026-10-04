@@ -13,9 +13,9 @@ The current goal is the full product, superseding docs/prototype.md's old scope.
 | Optional internet sound identification/context | Consent UI and server implemented; live credentials pending | consented clip analysis, separate research, citations |
 | Continuous recognition, responsive actions | Android service implemented; emulator lifecycle passed | service capture/inference/action timing |
 | Valid Android microphone foreground service | Implemented; emulator lifecycle passed | visible start, persistent notification, background runtime |
-| Convenience notifications | Implemented; physical delivery pending | real device delivery |
-| Distinct vibration patterns | Implemented; physical delivery pending | real device delivery and rule tests |
-| Connected LED | Configurable JSON POST implemented; device acknowledgement pending | configured transport and physical device acknowledgement |
+| Convenience notifications | Real model-to-Android notification posting and durable cooldown verified on emulator; physical delivery pending | real device delivery |
+| Distinct vibration patterns | Two distinct waveforms observed in Android emulator vibrator history; physical delivery pending | real device delivery and rule tests |
+| Connected LED | Configurable JSON POST and persisted connection-failure handling verified; device acknowledgement pending | configured transport and physical device acknowledgement |
 | Confirmation/labeling/reusable unfamiliar profiles | Explanation confirmation and direct unknown labeling route through calibrated enrollment | hypothesis confirmation and enrollment flow |
 | Improve/correct/re-enroll | Persistent corrections and re-enrollment implemented | persisted feedback and updated matching |
 | Profiles/rules and listening interruption state | Persistence, stop, and corrupt-library restart gates verified; physical interruptions pending | restart/recovery tests and hardware |

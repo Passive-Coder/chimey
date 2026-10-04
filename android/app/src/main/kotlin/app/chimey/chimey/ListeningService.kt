@@ -1,15 +1,9 @@
 package app.chimey.chimey
 
-import android.Manifest
 import android.app.*
 import android.content.*
-import android.content.pm.PackageManager
 import android.media.*
 import android.os.*
-import org.json.JSONArray
-import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.concurrent.Executors
 import kotlin.math.sqrt
 
@@ -20,13 +14,13 @@ class ListeningService : Service() {
     private lateinit var lease:SessionAuthority.Lease
     private var recorder: AudioRecord?=null
     private val prefs by lazy { getSharedPreferences("chimey.runtime", MODE_PRIVATE) }
+    private val recognition by lazy { SoundRecognition(this, prefs, network) }
     override fun onBind(intent: Intent?) = null
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if(intent?.action=="stop") { stopSelf(); return START_NOT_STICKY }
         if(::lease.isInitialized && !lease.stopped.isDone) return START_NOT_STICKY
         val manager=getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel("listening","Listening status",NotificationManager.IMPORTANCE_LOW))
-        manager.createNotificationChannel(NotificationChannel("sounds","Recognized sounds",NotificationManager.IMPORTANCE_DEFAULT).apply { enableVibration(false) })
         val open=PendingIntent.getActivity(this,0,Intent(this,MainActivity::class.java),PendingIntent.FLAG_IMMUTABLE)
         val stop=PendingIntent.getService(this,1,Intent(this,ListeningService::class.java).setAction("stop"),PendingIntent.FLAG_IMMUTABLE)
         val notification=Notification.Builder(this,"listening").setSmallIcon(android.R.drawable.ic_btn_speak_now).setContentTitle("chimey is listening").setContentText("Sound recognition stays on this device").setContentIntent(open).setOngoing(true).addAction(Notification.Action.Builder(null,"Stop",stop).build()).build()
@@ -66,7 +60,7 @@ class ListeningService : Service() {
                             val frame=model.infer(window)
                             // A relative noise floor avoids enrolling silent YAMNet bias vectors.
                             RuntimeBridge.emitFor(session,mapOf("type" to "features","features" to frame.features,"label" to frame.label,"score" to frame.score,"elapsedMs" to frame.elapsedMs,"rms" to rms,"featureModel" to "yamnet-embedding-v1"))
-                            if(rms>.003) RuntimeBridge.sessions.runIfActive(session) { recognize(session,frame) }
+                            if(rms>.003) RuntimeBridge.sessions.runIfActive(session) { recognition.process(frame) { RuntimeBridge.emitFor(session, it) } }
                             sinceInference=0
                         }
                         window.copyInto(window,0,7680,window.size); filled=window.size-7680
@@ -85,63 +79,6 @@ class ListeningService : Service() {
                 if(RuntimeBridge.sessions.current===session) stopSelf()
                 RuntimeBridge.sessions.finish(session)
             }
-        }
-    }
-    private fun recognize(session:SessionAuthority.Lease,frame: Yamnet.Frame) {
-        if(!active(session)) return
-        val profiles=JSONArray(prefs.getString("profiles","[]"))
-        val match=Recognition.match(frame.features,profiles)
-        val kind=if(match!=null) "personal" else if(frame.score>=.6) "category" else "unknown"
-        val label=match?.let{profiles.getJSONObject(it.first).getString("name")} ?: if(kind=="category") frame.label else "Unknown / mixed sound"
-        RuntimeBridge.emitFor(session,mapOf("type" to "recognition","kind" to kind,"label" to label,"score" to (match?.second ?: frame.score)))
-        if(match==null) return
-        val p=profiles.getJSONObject(match.first); val id=p.getString("id"); val rule=p.getJSONObject("rule")
-        val now=System.currentTimeMillis(); val last=prefs.getLong("action.$id",0)
-        if(now-last<rule.getInt("cooldownSeconds")*1000L) return
-        // Persist before delivering to prevent repeated actions after process death.
-        check(prefs.edit().putLong("action.$id",now).commit())
-        val deliveries=mutableListOf<String>()
-        if(rule.optBoolean("notification")) {
-            if(Build.VERSION.SDK_INT<33 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)==PackageManager.PERMISSION_GRANTED) {
-                val n=Notification.Builder(this,"sounds").setSmallIcon(android.R.drawable.ic_btn_speak_now).setContentTitle(label).setContentText("Personal sound match · chimey").setAutoCancel(true).setContentIntent(PendingIntent.getActivity(this,0,Intent(this,MainActivity::class.java),PendingIntent.FLAG_IMMUTABLE)).build()
-                getSystemService(NotificationManager::class.java).notify(id.hashCode(),n); deliveries.add("Notification requested")
-            } else deliveries.add("Notification permission unavailable")
-        }
-        if(rule.optBoolean("vibration")) {
-            val vibrator=if(Build.VERSION.SDK_INT>=31) getSystemService(VibratorManager::class.java).defaultVibrator else getSystemService(Vibrator::class.java)
-            val pattern=rule.getJSONArray("pattern"); val timings=LongArray(pattern.length()){pattern.getLong(it)}
-            if(vibrator.hasVibrator() && timings.isNotEmpty() && timings.all{it in 0..5000} && timings.sum()<=10000) { vibrator.vibrate(VibrationEffect.createWaveform(timings,-1)); deliveries.add("Vibration requested") }
-            else deliveries.add("Vibration unavailable")
-        }
-        val endpoint=rule.optString("ledEndpoint","")
-        val hasLed=endpoint.isNotEmpty() && endpoint!="null"
-        val base=deliveries.joinToString(" · ")
-        fun delivery(status:String)=listOf(base,status).filter{it.isNotEmpty()}.joinToString(" · ")
-        val eventId="$now-$id"
-        val event=JSONObject().put("id",eventId).put("label",label).put("kind",kind).put("time",java.time.Instant.ofEpochMilli(now).toString()).put("score",match.second).put("soundId",id).put("delivery",if(hasLed) delivery("LED pending") else base.ifEmpty{"No action"})
-        synchronized(RuntimeBridge) {
-            val old=JSONArray(prefs.getString("events","[]")); val next=JSONArray().put(event)
-            for(i in 0 until minOf(old.length(),199)) next.put(old.getJSONObject(i))
-            check(prefs.edit().putString("events",next.toString()).commit())
-        }
-        RuntimeBridge.emitFor(session,mapOf("type" to "event","event" to event.toString()))
-        if(hasLed) network.execute {
-            val status=try {
-                val url=URL(endpoint); require(url.protocol=="https"); require(url.userInfo==null)
-                val connection=url.openConnection() as HttpURLConnection
-                try { connection.connectTimeout=4000; connection.readTimeout=4000; connection.requestMethod="POST"; connection.doOutput=true; connection.setRequestProperty("Content-Type","application/json"); connection.outputStream.use{it.write(JSONObject().put("soundId",id).put("name",label).put("on",true).toString().toByteArray())}; if(connection.responseCode in 200..299) "LED acknowledged" else "LED rejected (${connection.responseCode})" }
-                finally { connection.disconnect() }
-            } catch(e:Exception) { "LED unavailable" }
-            val finalDelivery=delivery(status)
-            synchronized(RuntimeBridge) {
-                val history=JSONArray(prefs.getString("events","[]"))
-                for(i in 0 until history.length()) {
-                    val item=history.getJSONObject(i)
-                    if(item.optString("id")==eventId) item.put("delivery",finalDelivery)
-                }
-                prefs.edit().putString("events",history.toString()).commit()
-            }
-            RuntimeBridge.emit(mapOf("type" to "delivery","eventId" to eventId,"delivery" to finalDelivery))
         }
     }
 

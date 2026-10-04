@@ -33,3 +33,25 @@ The local LLM bridge uses actual audio bytes. A successful inference with an aut
 All 38 Flutter tests passed with clean analysis. The full eight-test Android instrumentation suite and three native unit tests passed. `AcousticFixtureTest` passed actual model inference and service matching on synthetic signals; [acoustic validation](acoustic-validation.md) records inputs, artifact provenance, observed similarities, and reproduction steps. Labeling without a model still requires calibration, and an attempted microphone restart after corrupt primary storage is blocked. Full audio-model/provider/physical-device qualification remains pending.
 
 [Platform CI for source commit 4661341](https://github.com/Passive-Coder/chimey/actions/runs/37222391384) passed Linux, Windows, and macOS release builds, web release build, iOS simulator build, Flutter analysis and all 38 Flutter tests, and five Node server tests. Android qualification remains the local emulator evidence above; physical hardware and live inference still require separate validation.
+
+## Real Android action pipeline
+
+The full 12-test Android instrumentation suite and three native unit tests passed after extracting the service's existing recognition/action pipeline into `SoundRecognition`. Live capture still calls it inside the active-session guard. `ActionDeliveryTest` runs real YAMNet inference on synthetic PCM, then the production matcher and action implementation:
+
+- A personal match appears in Android's active notification list with the expected title and content, and persists its activity and cooldown.
+- Recreating the pipeline with the same preferences does not repeat the notification during cooldown.
+- Disabled and ambiguous profiles do not persist an action or activity event.
+- An HTTPS LED connection failure changes durable activity from pending to unavailable while recognition continues.
+- Two separately configured haptic rules request different waveforms.
+
+An independent `adb -s emulator-5554 shell dumpsys vibrator_manager` observation on API 35 recorded finished chimey effects at 23:34:41 and 23:34:42 local device time. Its played segments were `[0, 180, 120, 180]` and `[0, 450, 180, 450, 180, 450]` milliseconds, alternating silence and full-amplitude vibration. Observed durations were 483 and 1,715 ms respectively. This proves distinct requests reached the emulator's Android vibrator service; it does not prove physical perceptibility or delivery on a phone.
+
+Reproduce with Java 21 and a running Android device/emulator:
+
+```
+cd android
+JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew app:connectedDebugAndroidTest app:testDebugUnitTest
+adb -s emulator-5554 shell dumpsys vibrator_manager
+```
+
+Replace the toolchain path and device serial as appropriate. A connected LED acknowledgement, actual local audio-LLM inference, live provider calls, appliance recordings and physical hardware qualification remain outstanding.

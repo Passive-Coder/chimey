@@ -20,6 +20,6 @@ The current goal is the full product, superseding docs/prototype.md's old scope.
 | Improve/correct/re-enroll | Persistent corrections and re-enrollment implemented | persisted feedback and updated matching |
 | Profiles/rules and listening interruption state | Persistence and explicit service stop implemented; interruptions pending | restart/recovery tests and hardware |
 | No Python anywhere in delivery | Implemented so far | source/build/tool audit |
-| Requested broad platform/device compatibility | Six platform targets; Android/web/iOS/macOS builds passed; Windows/Linux CI pending | docs/compatibility.md; hardware qualification remains |
+| Requested broad platform/device compatibility | Six platform targets; Android/web/iOS/macOS/Windows/Linux builds passed | docs/compatibility.md; hardware qualification remains |
 
 No calibrated SPL or spatial sound localization is promised without suitable hardware. Do not label model hypotheses as validated personal matches. Do not execute explanation-derived actions.

@@ -23,3 +23,7 @@ A running API 26+ Android emulator/device is required. The app deliberately does
 The final assistance-stage run passed seven Android instrumentation tests and three native unit tests. Added cases cover unequal profile thresholds, immediate stop/replacement cycles, repeated service attachment followed by worker exit, missing audio-model artifact handling, session ownership, and bounded PCM/WAV buffering. Notification denial cannot prevent disabling a rule; LED completion persists across restart while retaining corrections. Flutter analysis is clean and all 32 Flutter tests pass; five Node tests verify the assistance HTTP contract using a mocked provider. iOS simulator and web builds pass.
 
 The local LLM bridge uses actual audio bytes. A successful inference with an authorized Gemma artifact has not been demonstrated. Online provider calls and physical LED/haptic delivery have not been demonstrated. LED transport requires HTTPS, including a suitable bridge for devices offering only plain HTTP.
+
+## Desktop and platform builds
+
+[Platform CI for source commit 45308f2](https://github.com/Passive-Coder/chimey/actions/runs/37220564959) passed Linux, Windows, and macOS release builds, web release build, iOS simulator build, Flutter analysis and 32 Flutter tests, and five Node server tests. A local macOS release build also passed and the native animated UI was inspected. These results qualify build integration; they do not expand Android-only recognition/model capabilities to other platforms or establish physical device accuracy.
